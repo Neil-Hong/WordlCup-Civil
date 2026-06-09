@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Production builds
+dist/
+build/
+
+# Hardhat / Solidity
+artifacts/
+cache/
+typechain-types/
+coverage/
+coverage.json
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local AI/tooling workspaces
+.claude/
+
+# Generated outputs
+outputs/
+
+# Misc caches
+.turbo/
+.vercel/
+.eslintcache
+*.tsbuildinfo
