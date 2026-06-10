@@ -160,6 +160,8 @@ Deploy to Somnia Testnet:
 npx hardhat run scripts/deploy.ts --network somnia_testnet
 ```
 
+add the generated address to the `.env.local` file
+
 Run the app:
 
 ```bash

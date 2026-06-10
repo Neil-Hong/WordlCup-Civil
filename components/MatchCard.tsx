@@ -14,6 +14,13 @@ interface MatchCardProps {
       home: { winProbability: number; confidence: number } | null;
       away: { winProbability: number; confidence: number } | null;
     };
+    result?: {
+      homeScore: number;
+      awayScore: number;
+      winner: string | null;
+      actualHomeScore?: number;
+      actualAwayScore?: number;
+    } | null;
   };
 }
 
@@ -45,6 +52,13 @@ function StatusBadge({ status }: { status: Match["status"] }) {
 export function MatchCard({ match }: MatchCardProps) {
   const homeProb = match.agents?.home?.winProbability;
   const awayProb = match.agents?.away?.winProbability;
+  const displayScore =
+    match.status === "finished" && match.result
+      ? { home: match.result.homeScore, away: match.result.awayScore }
+      : match.score;
+  const hasPrediction = homeProb != null && awayProb != null;
+  const homePredictionPct = hasPrediction ? Math.round(homeProb * 100) : 50;
+  const awayPredictionPct = hasPrediction ? Math.round(awayProb * 100) : 50;
 
   return (
     <Link href={`/match/${match.id}`}>
@@ -78,14 +92,19 @@ export function MatchCard({ match }: MatchCardProps) {
               <span className="text-sm font-semibold tracking-[0.18em] text-gray-500">VS</span>
             ) : (
               <span className="font-mono text-2xl font-semibold tabular-nums text-white">
-                {match.score.home} - {match.score.away}
+                {displayScore.home} - {displayScore.away}
               </span>
             )}
-            {homeProb != null && awayProb != null && (
+            {hasPrediction && (
               <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-500">
-                <span>{Math.round(homeProb * 100)}%</span>
+                <span>{homePredictionPct}%</span>
                 <span>-</span>
-                <span>{Math.round(awayProb * 100)}%</span>
+                <span>{awayPredictionPct}%</span>
+              </div>
+            )}
+            {match.status === "finished" && match.result?.actualHomeScore != null && match.result?.actualAwayScore != null && (
+              <div className="mt-0.5 text-[9px] text-gray-600">
+                Sim FT: {match.result.actualHomeScore}-{match.result.actualAwayScore}
               </div>
             )}
           </div>
@@ -98,57 +117,40 @@ export function MatchCard({ match }: MatchCardProps) {
           </div>
         </div>
 
-        {/* Staking bar */}
-        {match.staking && (
+        {/* Prediction bar */}
+        {hasPrediction && (
           <div className="mt-2">
             <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-              <span>
-                {match.staking.home.totalStaked.toFixed(0)} staked
-              </span>
-              <span>
-                {match.staking.away.totalStaked.toFixed(0)} staked
-              </span>
+              <span>{match.homeTeam.name} AI {homePredictionPct}%</span>
+              <span>{match.awayTeam.name} AI {awayPredictionPct}%</span>
             </div>
             <div className="flex h-1.5 overflow-hidden rounded-sm bg-white/[0.06]">
-              {(() => {
-                const total =
-                  match.staking.home.totalStaked +
-                  match.staking.away.totalStaked;
-                const homePct =
-                  total > 0
-                    ? (match.staking.home.totalStaked / total) * 100
-                    : 50;
-                return (
-                  <>
-                    <div
-                      className="h-full bg-agent-blue/60 transition-all duration-500"
-                      style={{ width: `${homePct}%` }}
-                    />
-                    <div
-                      className="h-full bg-agent-red/60 transition-all duration-500"
-                      style={{ width: `${100 - homePct}%` }}
-                    />
-                  </>
-                );
-              })()}
+              <div
+                className="h-full bg-agent-blue/60 transition-all duration-500"
+                style={{ width: `${homePredictionPct}%` }}
+              />
+              <div
+                className="h-full bg-agent-red/60 transition-all duration-500"
+                style={{ width: `${awayPredictionPct}%` }}
+              />
             </div>
           </div>
         )}
 
         {/* Agent preview */}
-        {match.agents?.home && match.agents?.away && (
+        {hasPrediction && (
           <div className="mt-3 flex items-center justify-center gap-2">
             <div className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-agent-blue" />
               <span className="text-[10px] text-gray-500">
-                AI: {Math.round(match.agents.home.winProbability * 100)}%
+                AI: {homePredictionPct}%
               </span>
             </div>
             <span className="text-[10px] text-gray-600">/</span>
             <div className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-agent-red" />
               <span className="text-[10px] text-gray-500">
-                AI: {Math.round(match.agents.away.winProbability * 100)}%
+                AI: {awayPredictionPct}%
               </span>
             </div>
           </div>

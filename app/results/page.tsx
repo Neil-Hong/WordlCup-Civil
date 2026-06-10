@@ -80,15 +80,15 @@ export default function ResultsPage() {
                 </div>
 
                 {/* Score */}
-                <div className="flex items-center justify-center gap-8 mb-6">
+                <div className="mx-auto mb-6 grid max-w-xl grid-cols-[1fr_10rem_1fr] items-start gap-6">
                   <div className="text-center">
                     <FlagIcon teamId={homeTeam.id} size={40} />
                     <div className="text-sm text-gray-300 mt-1">
                       {homeTeam.name}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-3xl font-bold text-white">
+                  <div className="text-center">
+                    <div className="font-mono text-3xl font-bold tabular-nums text-white">
                       {result.homeScore} - {result.awayScore}
                     </div>
                     {result.winner && (

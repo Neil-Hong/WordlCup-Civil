@@ -20,6 +20,13 @@ interface MatchData {
     home: { winProbability: number; confidence: number } | null;
     away: { winProbability: number; confidence: number } | null;
   };
+  result: {
+    homeScore: number;
+    awayScore: number;
+    winner: string | null;
+    actualHomeScore?: number;
+    actualAwayScore?: number;
+  } | null;
 }
 
 export default function HomePage() {
@@ -137,7 +144,7 @@ export default function HomePage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {upcomingMatches.map((match) => (
-                  <div key={match.id} className="relative">
+                  <div key={match.id}>
                     <MatchCard match={match} />
                     <button
                       onClick={(e) => {
@@ -145,7 +152,7 @@ export default function HomePage() {
                         handleStartMatch(match.id);
                       }}
                       disabled={starting === match.id}
-                      className="absolute bottom-4 right-4 btn-primary px-4 py-2 text-xs"
+                      className="mt-3 w-full btn-primary px-4 py-2 text-xs"
                     >
                       {starting === match.id ? "Starting..." : "Start Match"}
                     </button>

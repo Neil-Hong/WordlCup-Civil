@@ -16,6 +16,10 @@ export async function GET() {
     const homePool = store.getStakingPool(m.id, m.homeTeam.id);
     const awayPool = store.getStakingPool(m.id, m.awayTeam.id);
     const agent = store.getMatchAgentState(m.id);
+    if (m.status === "finished" && !store.getResult(m.id)) {
+      store.calculateRewards(m.id);
+    }
+    const result = store.getResult(m.id);
 
     return {
       ...m,
@@ -37,6 +41,13 @@ export async function GET() {
         home: null,
         away: null,
       },
+      result: result ? {
+        homeScore: result.homeScore,
+        awayScore: result.awayScore,
+        winner: result.winner,
+        actualHomeScore: result.actualHomeScore,
+        actualAwayScore: result.actualAwayScore,
+      } : null,
     };
   });
 
