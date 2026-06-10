@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/store";
+import { ensureMatch } from "@/lib/match-simulator";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const match = store.getMatch(matchId);
+  const match = matchId.startsWith("demo_") ? ensureMatch(matchId) : store.getMatch(matchId);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ stakes });
   }
 
-  const match = store.getMatch(matchId);
+  const match = matchId.startsWith("demo_") ? ensureMatch(matchId) : store.getMatch(matchId);
   if (!match) return NextResponse.json({ error: "Match not found" }, { status: 404 });
   const homePool = store.getStakingPool(matchId, match.homeTeam.id);
   const awayPool = store.getStakingPool(matchId, match.awayTeam.id);

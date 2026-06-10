@@ -2,7 +2,8 @@
 
 import { useAccount, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther, formatEther } from "viem";
-import { TeamVaultABI, PredictionABI, RewardABI, CONTRACTS, TEAM_IDS, MATCH_IDS } from "./contracts";
+import { TeamVaultABI, PredictionABI, RewardABI, CONTRACTS, TEAM_IDS } from "./contracts";
+import { getChainMatchId } from "./match-id";
 import { useState, useEffect } from "react";
 
 export const MAX_STAKE_PER_USER_PER_MATCH_STT = 0.01;
@@ -11,7 +12,7 @@ export const MAX_STAKE_PER_USER_PER_MATCH_STT = 0.01;
 
 export function useStake(matchId: string, teamId: string) {
   const { address } = useAccount();
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
   const numericTeamId = TEAM_IDS[teamId] ?? 1;
   const [amount, setAmount] = useState("0.001");
 
@@ -44,7 +45,7 @@ export function useStake(matchId: string, teamId: string) {
       address: CONTRACTS.teamVault,
       abi: TeamVaultABI,
       functionName: "stake",
-      args: [BigInt(numericTeamId), BigInt(numericMatchId)],
+      args: [BigInt(numericTeamId), numericMatchId],
       value: parseEther(amount),
     });
   };
@@ -53,7 +54,7 @@ export function useStake(matchId: string, teamId: string) {
 }
 
 export function useMatchTotalStaked(matchId: string, homeTeamId: string, awayTeamId: string) {
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
   const homeNumeric = TEAM_IDS[homeTeamId] ?? 1;
   const awayNumeric = TEAM_IDS[awayTeamId] ?? 2;
 
@@ -61,7 +62,7 @@ export function useMatchTotalStaked(matchId: string, homeTeamId: string, awayTea
     address: CONTRACTS.teamVault,
     abi: TeamVaultABI,
     functionName: "matchTeamStaked",
-    args: [BigInt(numericMatchId), BigInt(homeNumeric)],
+    args: [numericMatchId, BigInt(homeNumeric)],
     query: { refetchInterval: 5000 },
   });
 
@@ -69,7 +70,7 @@ export function useMatchTotalStaked(matchId: string, homeTeamId: string, awayTea
     address: CONTRACTS.teamVault,
     abi: TeamVaultABI,
     functionName: "matchTeamStaked",
-    args: [BigInt(numericMatchId), BigInt(awayNumeric)],
+    args: [numericMatchId, BigInt(awayNumeric)],
     query: { refetchInterval: 5000 },
   });
 
@@ -87,14 +88,14 @@ export function useUserStake(matchId: string, teamId: string) {
 
 export function useUserStakeRead(matchId: string, teamId: string) {
   const { address } = useAccount();
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
   const numericTeamId = TEAM_IDS[teamId] ?? 1;
 
   const read = useReadContract({
     address: CONTRACTS.teamVault,
     abi: TeamVaultABI,
     functionName: "getUserStake",
-    args: [address ?? "0x0000000000000000000000000000000000000000", BigInt(numericMatchId), BigInt(numericTeamId)],
+    args: [address ?? "0x0000000000000000000000000000000000000000", numericMatchId, BigInt(numericTeamId)],
     query: { refetchInterval: 5000, enabled: !!address },
   });
 
@@ -107,13 +108,13 @@ export function useUserStakeRead(matchId: string, teamId: string) {
 // Check which team the user is locked to (persistent on-chain, never cleared)
 export function useUserTeamChoice(matchId: string) {
   const { address } = useAccount();
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
 
   const { data, isLoading } = useReadContract({
     address: CONTRACTS.teamVault,
     abi: TeamVaultABI,
     functionName: "userTeamChoice",
-    args: [BigInt(numericMatchId), address ?? "0x0000000000000000000000000000000000000000"],
+    args: [numericMatchId, address ?? "0x0000000000000000000000000000000000000000"],
     query: { refetchInterval: 5000, enabled: !!address },
   });
 
@@ -129,13 +130,13 @@ export function useUserTeamChoice(matchId: string) {
 // ── Prediction Hooks ──
 
 export function useMatchResult(matchId: string) {
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
 
   const { data } = useReadContract({
     address: CONTRACTS.prediction,
     abi: PredictionABI,
     functionName: "results",
-    args: [BigInt(numericMatchId)],
+    args: [numericMatchId],
     query: { refetchInterval: 5000 },
   });
 
@@ -149,14 +150,14 @@ export function useMatchResult(matchId: string) {
 
 export function useCalculateReward(matchId: string, teamId: string, enabled = true) {
   const { address } = useAccount();
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
   const numericTeamId = TEAM_IDS[teamId] ?? 1;
 
   const { data } = useReadContract({
     address: CONTRACTS.reward,
     abi: RewardABI,
     functionName: "calculateReward",
-    args: [address ?? "0x0000000000000000000000000000000000000000", BigInt(numericMatchId), BigInt(numericTeamId)],
+    args: [address ?? "0x0000000000000000000000000000000000000000", numericMatchId, BigInt(numericTeamId)],
     query: { refetchInterval: 5000, enabled: !!address && enabled },
   });
 
@@ -165,14 +166,14 @@ export function useCalculateReward(matchId: string, teamId: string, enabled = tr
 
 export function useRewardClaimed(matchId: string, teamId: string, enabled = true) {
   const { address } = useAccount();
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
   const numericTeamId = TEAM_IDS[teamId] ?? 1;
 
   const { data, isLoading, error } = useReadContract({
     address: CONTRACTS.reward,
     abi: RewardABI,
     functionName: "claimed",
-    args: [BigInt(numericMatchId), address ?? "0x0000000000000000000000000000000000000000", BigInt(numericTeamId)],
+    args: [numericMatchId, address ?? "0x0000000000000000000000000000000000000000", BigInt(numericTeamId)],
     query: { refetchInterval: 5000, enabled: !!address && enabled },
   });
 
@@ -187,7 +188,7 @@ export function useRewardBalance() {
 }
 
 export function useClaimReward(matchId: string, teamId: string) {
-  const numericMatchId = MATCH_IDS[matchId] ?? 1;
+  const numericMatchId = getChainMatchId(matchId);
   const numericTeamId = TEAM_IDS[teamId] ?? 1;
 
   const { writeContract, data: hash, isPending, error } = useWriteContract();
@@ -198,7 +199,7 @@ export function useClaimReward(matchId: string, teamId: string) {
       address: CONTRACTS.reward,
       abi: RewardABI,
       functionName: "claimReward",
-      args: [BigInt(numericMatchId), BigInt(numericTeamId)],
+      args: [numericMatchId, BigInt(numericTeamId)],
     });
   };
 

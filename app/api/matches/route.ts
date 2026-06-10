@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/store";
-import { seedMatch, startSimulation } from "@/lib/match-simulator";
+import { ensureMatch, seedMatch, startSimulation } from "@/lib/match-simulator";
+import { createDemoMatchId } from "@/lib/match-id";
 
 // Initialize seed data on first request
 let seeded = false;
@@ -16,6 +17,10 @@ export async function GET() {
     const homePool = store.getStakingPool(m.id, m.homeTeam.id);
     const awayPool = store.getStakingPool(m.id, m.awayTeam.id);
     const agent = store.getMatchAgentState(m.id);
+    if (m.status === "finished" && !store.getResult(m.id)) {
+      store.calculateRewards(m.id);
+    }
+    const result = store.getResult(m.id);
 
     return {
       ...m,
@@ -37,6 +42,13 @@ export async function GET() {
         home: null,
         away: null,
       },
+      result: result ? {
+        homeScore: result.homeScore,
+        awayScore: result.awayScore,
+        winner: result.winner,
+        actualHomeScore: result.actualHomeScore,
+        actualAwayScore: result.actualAwayScore,
+      } : null,
     };
   });
 
@@ -48,7 +60,8 @@ export async function POST(req: NextRequest) {
   const { action, matchId } = body;
 
   if (action === "start") {
-    const match = store.getMatch(matchId);
+    const activeMatchId = matchId === "match_1" ? createDemoMatchId() : matchId;
+    const match = ensureMatch(activeMatchId);
     if (!match) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
@@ -59,8 +72,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Match already finished" }, { status: 400 });
     }
 
-    startSimulation(matchId);
-    return NextResponse.json({ success: true, matchId });
+    startSimulation(activeMatchId);
+    return NextResponse.json({ success: true, matchId: activeMatchId });
   }
 
   if (action === "reset") {

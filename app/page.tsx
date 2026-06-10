@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { MatchCard } from "@/components/MatchCard";
 
 interface MatchData {
@@ -20,9 +21,17 @@ interface MatchData {
     home: { winProbability: number; confidence: number } | null;
     away: { winProbability: number; confidence: number } | null;
   };
+  result: {
+    homeScore: number;
+    awayScore: number;
+    winner: string | null;
+    actualHomeScore?: number;
+    actualAwayScore?: number;
+  } | null;
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [matches, setMatches] = useState<MatchData[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState<string | null>(null);
@@ -52,6 +61,9 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start", matchId }),
+      }).then(async (res) => {
+        const data = await res.json();
+        if (data.matchId) router.push(`/match/${data.matchId}`);
       });
       await fetchMatches();
     } catch {
@@ -103,7 +115,7 @@ export default function HomePage() {
             onClick={handleReset}
             className="btn-secondary"
           >
-            Reset Demo
+            Reset Local View
           </button>
         </div>
       </div>
@@ -137,7 +149,7 @@ export default function HomePage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {upcomingMatches.map((match) => (
-                  <div key={match.id} className="relative">
+                  <div key={match.id}>
                     <MatchCard match={match} />
                     <button
                       onClick={(e) => {
@@ -145,9 +157,9 @@ export default function HomePage() {
                         handleStartMatch(match.id);
                       }}
                       disabled={starting === match.id}
-                      className="absolute bottom-4 right-4 btn-primary px-4 py-2 text-xs"
+                      className="mt-3 w-full btn-primary px-4 py-2 text-xs"
                     >
-                      {starting === match.id ? "Starting..." : "Start Match"}
+                      {starting === match.id ? "Starting..." : "Start New Demo"}
                     </button>
                   </div>
                 ))}

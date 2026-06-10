@@ -119,9 +119,9 @@ function createEvent(
 
 // ── Create the single match ──
 
-export function createMatch(): Match {
+export function createMatch(id = "match_1"): Match {
   const match: Match = {
-    id: "match_1",
+    id,
     homeTeam: TEAMS.brazil,
     awayTeam: TEAMS.england,
     status: "upcoming",
@@ -130,8 +130,12 @@ export function createMatch(): Match {
     events: [],
     startTime: Date.now(),
   };
-  store.matches.set("match_1", match);
+  store.matches.set(id, match);
   return match;
+}
+
+export function ensureMatch(matchId: string): Match {
+  return store.getMatch(matchId) ?? createMatch(matchId);
 }
 
 // ── Simulation Control ──
@@ -142,13 +146,13 @@ export interface SimulationState {
   currentMinute: number;
   timerId: ReturnType<typeof setInterval> | null;
   eventIndex: number;
+  lastTickAt: number;
 }
 
 const simulations: Map<string, SimulationState> = new Map();
 
 export function startSimulation(matchId: string): SimulationState {
-  const match = store.getMatch(matchId);
-  if (!match) throw new Error(`Match not found: ${matchId}`);
+  const match = ensureMatch(matchId);
 
   stopSimulation(matchId);
 
@@ -176,9 +180,11 @@ export function startSimulation(matchId: string): SimulationState {
     currentMinute: 0,
     timerId: null,
     eventIndex: 0,
+    lastTickAt: Date.now(),
   };
 
   // Probabilistic match simulation — events may or may not occur
+  if (process.env.NEXT_PUBLIC_USE_BACKGROUND_SIM === "1") {
   sim.timerId = setInterval(() => {
     const currentMatch = store.getMatch(matchId);
     if (!currentMatch || currentMatch.status === "finished") {
@@ -215,9 +221,57 @@ export function startSimulation(matchId: string): SimulationState {
       store.calculateRewards(matchId);
     }
   }, 4000);
+  }
 
   simulations.set(matchId, sim);
   return sim;
+}
+
+export function advanceSimulation(matchId: string): void {
+  const match = store.getMatch(matchId);
+  if (!match || match.status !== "live") return;
+
+  let sim = simulations.get(matchId);
+  if (!sim) {
+    sim = {
+      matchId,
+      running: true,
+      currentMinute: match.currentMinute,
+      timerId: null,
+      eventIndex: 0,
+      lastTickAt: 0,
+    };
+    simulations.set(matchId, sim);
+  }
+
+  const now = Date.now();
+  if (now - sim.lastTickAt < 3000) return;
+  sim.lastTickAt = now;
+
+  sim.currentMinute = Math.min(90, Math.max(match.currentMinute, sim.currentMinute) + 2 + Math.floor(Math.random() * 3));
+
+  const timeUpdate = createEvent("time_update", "neutral", sim.currentMinute, `Match clock: ${sim.currentMinute}'`);
+  store.addEvent(matchId, timeUpdate);
+
+  const goal = generateGoal(sim.currentMinute, match);
+  if (goal) processMatchEvent(matchId, goal).catch(() => {});
+
+  const card = generateCard(sim.currentMinute, match);
+  if (card) processMatchEvent(matchId, card).catch(() => {});
+
+  if (sim.currentMinute >= 45 && !match.events.some(e => e.type === "halftime")) {
+    const halftime = createEvent("halftime", "neutral", 45, "HALFTIME! Teams head to the dressing room.");
+    processMatchEvent(matchId, halftime).catch(() => {});
+  }
+
+  if (sim.currentMinute >= 90 && !match.events.some(e => e.type === "fulltime")) {
+    const fulltime = createEvent("fulltime", "neutral", 90, "FULL TIME! The referee blows the final whistle.");
+    processMatchEvent(matchId, fulltime).catch(() => {});
+    match.status = "finished";
+    match.currentMinute = 90;
+    store.calculateRewards(matchId);
+    stopSimulation(matchId);
+  }
 }
 
 export function stopSimulation(matchId: string): void {

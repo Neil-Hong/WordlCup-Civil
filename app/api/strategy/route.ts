@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/store";
 import { processStrategyInput } from "@/lib/agent-engine";
+import { ensureMatch } from "@/lib/match-simulator";
 import type { StrategyType } from "@/lib/types";
 import { STRATEGY_CONFIGS } from "@/lib/types";
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate match exists and is not finished
-    const match = store.getMatch(matchId);
+    const match = matchId.startsWith("demo_") ? ensureMatch(matchId) : store.getMatch(matchId);
     if (!match) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "matchId query param required" }, { status: 400 });
   }
 
-  const match = store.getMatch(matchId);
+  const match = matchId.startsWith("demo_") ? ensureMatch(matchId) : store.getMatch(matchId);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }

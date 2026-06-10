@@ -1,7 +1,8 @@
-import { createPublicClient, createWalletClient, http } from "viem";
+import { createPublicClient, createWalletClient, http, type Hash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { somniaTestnet } from "./chains";
-import { CONTRACTS, MATCH_IDS, PredictionABI, TEAM_IDS } from "./contracts";
+import { CONTRACTS, PredictionABI, TEAM_IDS } from "./contracts";
+import { getChainMatchId } from "./match-id";
 import { store } from "./store";
 
 const finalizeInFlight = new Map<string, Promise<{ tx?: string; error?: string }>>();
@@ -65,7 +66,7 @@ async function finalizeMatchOnChainInternal(matchId: string): Promise<{ tx?: str
   const balance = await publicClient.getBalance({ address: wallet.account.address });
   if (balance === 0n) return { error: "Server wallet has 0 STT; fund it at the Somnia faucet" };
 
-  const numericMatchId = BigInt(MATCH_IDS[matchId] ?? 1);
+  const numericMatchId = getChainMatchId(matchId);
   const homeNumericId = BigInt(TEAM_IDS[match.homeTeam.id] ?? 1);
   const awayNumericId = BigInt(TEAM_IDS[match.awayTeam.id] ?? 2);
 
@@ -78,27 +79,20 @@ async function finalizeMatchOnChainInternal(matchId: string): Promise<{ tx?: str
     });
     if ((result as any)[3]) return { tx: "already-finalized" };
 
-    const nonce = await publicClient.getTransactionCount({
-      address: wallet.account.address,
-      blockTag: "pending",
-    });
-
-    const setTeamsTx = await wallet.writeContract({
-      address: CONTRACTS.prediction,
-      abi: PredictionABI,
-      functionName: "setMatchTeams",
-      args: [numericMatchId, homeNumericId, awayNumericId],
-      nonce,
-    });
+    const setTeamsTx = await writePredictionContractWithNonceRetry(
+      wallet,
+      publicClient,
+      "setMatchTeams",
+      [numericMatchId, homeNumericId, awayNumericId],
+    );
     await publicClient.waitForTransactionReceipt({ hash: setTeamsTx, timeout: 60000 });
 
-    const tx = await wallet.writeContract({
-      address: CONTRACTS.prediction,
-      abi: PredictionABI,
-      functionName: "finalizeMatchResult",
-      args: [numericMatchId, settlement.homeScore, settlement.awayScore],
-      nonce: nonce + 1,
-    });
+    const tx = await writePredictionContractWithNonceRetry(
+      wallet,
+      publicClient,
+      "finalizeMatchResult",
+      [numericMatchId, settlement.homeScore, settlement.awayScore],
+    );
     await publicClient.waitForTransactionReceipt({ hash: tx, timeout: 60000 });
 
     match.onChainTxHash = tx;
@@ -107,8 +101,74 @@ async function finalizeMatchOnChainInternal(matchId: string): Promise<{ tx?: str
     return { tx };
   } catch (err: any) {
     console.error("[ChainWriter] Finalize failed:", err.message);
+    if (await isMatchAlreadyFinalized(publicClient, numericMatchId)) {
+      return { tx: "already-finalized" };
+    }
     return { error: err.message };
   }
+}
+
+async function isMatchAlreadyFinalized(
+  publicClient: ReturnType<typeof createPublicClient>,
+  numericMatchId: bigint,
+): Promise<boolean> {
+  try {
+    const result = await publicClient.readContract({
+      address: CONTRACTS.prediction,
+      abi: PredictionABI,
+      functionName: "results",
+      args: [numericMatchId],
+    });
+    return Boolean((result as any)[3]);
+  } catch {
+    return false;
+  }
+}
+
+async function writePredictionContractWithNonceRetry(
+  wallet: NonNullable<ReturnType<typeof getWalletClient>>,
+  publicClient: ReturnType<typeof createPublicClient>,
+  functionName: "setMatchTeams" | "finalizeMatchResult",
+  args: readonly unknown[],
+): Promise<Hash> {
+  let lastError: any;
+  let nextNonce: number | undefined;
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    let nonce: number | undefined;
+    try {
+      nonce = nextNonce ?? await publicClient.getTransactionCount({
+        address: wallet.account.address,
+        blockTag: "pending",
+      });
+
+      return await wallet.writeContract({
+        address: CONTRACTS.prediction,
+        abi: PredictionABI,
+        functionName,
+        args,
+        nonce,
+      } as any);
+    } catch (err: any) {
+      lastError = err;
+      if (!isNonceTooLowError(err) || attempt === 7) break;
+      if (nonce != null) nextNonce = nonce + 1;
+      await sleep(900 + attempt * 600);
+    }
+  }
+
+  throw lastError;
+}
+
+function isNonceTooLowError(err: any): boolean {
+  const message = String(err?.shortMessage ?? err?.message ?? err ?? "").toLowerCase();
+  return message.includes("nonce too low") ||
+    message.includes("nonce provided") ||
+    message.includes("lower than the current nonce");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function topUpRewardPoolIfNeeded(wallet: NonNullable<ReturnType<typeof getWalletClient>>) {

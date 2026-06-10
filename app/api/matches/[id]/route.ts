@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { store } from "@/lib/store";
-import { seedMatch } from "@/lib/match-simulator";
+import { advanceSimulation, ensureMatch, seedMatch } from "@/lib/match-simulator";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   seedMatch();
-  const match = store.getMatch(params.id);
+  const match = params.id.startsWith("demo_") ? ensureMatch(params.id) : store.getMatch(params.id);
   if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
   if (match.status === "live") {
+    advanceSimulation(match.id);
     const hasFulltime = match.events.some(e => e.type === "fulltime");
     if (hasFulltime || match.currentMinute >= 90) {
       match.status = "finished";
